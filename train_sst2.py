@@ -100,12 +100,18 @@ def main() -> None:
     }
 
     training_args_signature = inspect.signature(TrainingArguments.__init__)
-    if "eval_strategy" in training_args_signature.parameters:
+    training_arg_names = set(training_args_signature.parameters.keys())
+
+    if "eval_strategy" in training_arg_names:
         training_args_kwargs["eval_strategy"] = "epoch"
     else:
         training_args_kwargs["evaluation_strategy"] = "epoch"
 
-    training_args = TrainingArguments(**training_args_kwargs)
+    supported_training_args_kwargs = {
+        key: value for key, value in training_args_kwargs.items() if key in training_arg_names
+    }
+
+    training_args = TrainingArguments(**supported_training_args_kwargs)
 
     trainer = NoShuffleTrainer(
         model=model,
