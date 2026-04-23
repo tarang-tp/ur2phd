@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import sys
 from pathlib import Path
 
@@ -74,30 +75,37 @@ def main() -> None:
     tokenized_train = tokenize_dataset(ordered_train, tokenizer, args.max_length)
     tokenized_validation = tokenize_dataset(raw_dataset["validation"], tokenizer, args.max_length)
 
-    training_args = TrainingArguments(
-        output_dir=str(run_dir / "checkpoints"),
-        overwrite_output_dir=True,
-        do_train=True,
-        do_eval=True,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        logging_strategy="steps",
-        logging_steps=50,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        num_train_epochs=args.epochs,
-        weight_decay=args.weight_decay,
-        warmup_ratio=args.warmup_ratio,
-        seed=args.model_seed,
-        data_seed=args.model_seed,
-        load_best_model_at_end=True,
-        metric_for_best_model="accuracy",
-        greater_is_better=True,
-        report_to=[],
-        fp16=args.fp16,
-        save_total_limit=1,
-    )
+    training_args_kwargs = {
+        "output_dir": str(run_dir / "checkpoints"),
+        "overwrite_output_dir": True,
+        "do_train": True,
+        "do_eval": True,
+        "save_strategy": "epoch",
+        "logging_strategy": "steps",
+        "logging_steps": 50,
+        "per_device_train_batch_size": args.batch_size,
+        "per_device_eval_batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "num_train_epochs": args.epochs,
+        "weight_decay": args.weight_decay,
+        "warmup_ratio": args.warmup_ratio,
+        "seed": args.model_seed,
+        "data_seed": args.model_seed,
+        "load_best_model_at_end": True,
+        "metric_for_best_model": "accuracy",
+        "greater_is_better": True,
+        "report_to": [],
+        "fp16": args.fp16,
+        "save_total_limit": 1,
+    }
+
+    training_args_signature = inspect.signature(TrainingArguments.__init__)
+    if "eval_strategy" in training_args_signature.parameters:
+        training_args_kwargs["eval_strategy"] = "epoch"
+    else:
+        training_args_kwargs["evaluation_strategy"] = "epoch"
+
+    training_args = TrainingArguments(**training_args_kwargs)
 
     trainer = NoShuffleTrainer(
         model=model,
