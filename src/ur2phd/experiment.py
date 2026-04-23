@@ -55,10 +55,11 @@ CONTRAST_WORDS = {
 class NoShuffleTrainer(Trainer):
     """Preserve dataset order exactly as provided."""
 
-    def _get_train_sampler(self):
-        if self.train_dataset is None:
+    def _get_train_sampler(self, train_dataset=None):
+        dataset = train_dataset if train_dataset is not None else self.train_dataset
+        if dataset is None:
             return None
-        return SequentialSampler(self.train_dataset)
+        return SequentialSampler(dataset)
 
 
 @dataclass
