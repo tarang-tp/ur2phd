@@ -113,15 +113,21 @@ def main() -> None:
 
     training_args = TrainingArguments(**supported_training_args_kwargs)
 
-    trainer = NoShuffleTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=tokenized_train,
-        eval_dataset=tokenized_validation,
-        tokenizer=tokenizer,
-        data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
-        compute_metrics=compute_metrics,
-    )
+    trainer_kwargs = {
+        "model": model,
+        "args": training_args,
+        "train_dataset": tokenized_train,
+        "eval_dataset": tokenized_validation,
+        "tokenizer": tokenizer,
+        "data_collator": DataCollatorWithPadding(tokenizer=tokenizer),
+        "compute_metrics": compute_metrics,
+    }
+    trainer_signature = inspect.signature(NoShuffleTrainer.__init__)
+    supported_trainer_kwargs = {
+        key: value for key, value in trainer_kwargs.items() if key in trainer_signature.parameters
+    }
+
+    trainer = NoShuffleTrainer(**supported_trainer_kwargs)
 
     trainer.train()
     validation_metrics = trainer.evaluate()
