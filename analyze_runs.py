@@ -18,22 +18,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifacts-root", type=Path, default=Path("artifacts"))
     parser.add_argument("--output-dir", type=Path, default=Path("analysis"))
     parser.add_argument("--top-disagreement-quantile", type=float, default=0.9)
+    parser.add_argument("--exclude-runs", nargs="*", default=[])
     return parser.parse_args()
 
 
-def load_validation_predictions(artifacts_root: Path) -> pd.DataFrame:
+def load_validation_predictions(artifacts_root: Path, exclude_runs: set[str]) -> pd.DataFrame:
     frames = []
     for prediction_file in sorted(artifacts_root.glob("*/validation_predictions.csv")):
+        if prediction_file.parent.name in exclude_runs:
+            continue
         frames.append(pd.read_csv(prediction_file))
     if not frames:
         raise FileNotFoundError(f"No validation prediction files found under {artifacts_root}.")
     return pd.concat(frames, ignore_index=True)
 
 
-def load_run_metrics(artifacts_root: Path) -> pd.DataFrame:
+def load_run_metrics(artifacts_root: Path, exclude_runs: set[str]) -> pd.DataFrame:
     rows = []
     for metrics_file in sorted(artifacts_root.glob("*/metrics.json")):
         payload = json.loads(metrics_file.read_text(encoding="utf-8"))
+        if payload["run_name"] in exclude_runs:
+            continue
         rows.append(
             {
                 "run_name": payload["run_name"],
@@ -93,9 +98,10 @@ def build_model_scores(predictions: pd.DataFrame, metrics: pd.DataFrame) -> pd.D
         other_majority = other_votes.mode(axis=1)
         majority_label = other_majority[0].astype(int)
         agreement_score = float((pivot[run_name] == majority_label).mean())
-        tied_rows = other_majority.shape[1] > 1
-        if (~tied_rows).any():
-            strict_agreement_score = float((pivot.loc[~tied_rows, run_name] == majority_label.loc[~tied_rows]).mean())
+        tied_rows = other_majority.notna().sum(axis=1) > 1
+        non_tied_rows = ~tied_rows
+        if non_tied_rows.any():
+            strict_agreement_score = float((pivot.loc[non_tied_rows, run_name] == majority_label.loc[non_tied_rows]).mean())
         else:
             strict_agreement_score = float("nan")
 
@@ -258,9 +264,10 @@ def build_summary_report(
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    exclude_runs = set(args.exclude_runs)
 
-    predictions = load_validation_predictions(args.artifacts_root)
-    metrics = load_run_metrics(args.artifacts_root)
+    predictions = load_validation_predictions(args.artifacts_root, exclude_runs)
+    metrics = load_run_metrics(args.artifacts_root, exclude_runs)
     sentence_summary = build_sentence_summary(predictions)
     pairwise_agreement = build_pairwise_agreement(predictions)
     model_scores = build_model_scores(predictions, metrics)
